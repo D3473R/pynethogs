@@ -8,6 +8,7 @@ LIBNETHOGS_VERSION = "0.8.5-54-gac5af1d"
 NETHOGS_APP_ACTION_SET = 1
 NETHOGS_APP_ACTION_REMOVE = 2
 
+CMPFUNC_t = None
 
 class NethogsMonitorRecord(ctypes.Structure):
     _fields_ = [
@@ -31,15 +32,23 @@ def signal_handler(signal, frame):
 
 
 def main():
+    global CMPFUNC_t
+
     signal.signal(signal.SIGINT, signal_handler)
     libnethogs =  ctypes.CDLL("lib/libnethogs.so.%s" % LIBNETHOGS_VERSION)
 
-    @ctypes.CFUNCTYPE(None, ctypes.c_int, NethogsMonitorRecord)
-    def callback(action, update):
-        print(update)
+    NethogsMonitorRecord_ptr = ctypes.POINTER(NethogsMonitorRecord)
 
-    libnethogs.nethogsmonitor_loop(callback, None)
-    libnethogs.nethogsmonitor_breakloop()
+    CMPFUNC_t = ctypes.CFUNCTYPE(None, ctypes.c_int, NethogsMonitorRecord_ptr)
+
+    def callback(action, update):
+        print(update.contents)
+
+    dist_callback = CMPFUNC_t(callback)
+
+    libnethogs.nethogsmonitor_loop.argtypes = [CMPFUNC_t, ctypes.c_bool]
+    libnethogs.nethogsmonitor_loop.restype = ctypes.c_int
+    libnethogs.nethogsmonitor_loop(dist_callback, None)
 
 
 if __name__ == '__main__':
